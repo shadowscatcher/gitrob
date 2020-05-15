@@ -59,7 +59,7 @@ func NewRouter(s *Session) *gin.Engine {
 	}
 
 	router := gin.New()
-	router.Use(static.Serve("/", BinaryFileSystem("static")))
+	router.Use(static.Serve("/", BinaryFileSystem("static/dist")))
 	router.Use(secure.New(secure.Config{
 		SSLRedirect:           false,
 		IsDevelopment:         false,
