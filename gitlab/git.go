@@ -2,18 +2,17 @@ package gitlab
 
 import (
 	"fmt"
+	"gitrob/common"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/transport/http"
 	"gopkg.in/src-d/go-git.v4/storage/memory"
 	"io/ioutil"
-	"gitrob/common"
 )
 
 func CloneRepository(cloneConfig *common.CloneConfiguration) (*git.Repository, string, error) {
-
 	cloneOptions := &git.CloneOptions{
-		URL:           *cloneConfig.Url,
+		URL:           *cloneConfig.URL,
 		Depth:         *cloneConfig.Depth,
 		ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", *cloneConfig.Branch)),
 		SingleBranch:  true,
@@ -40,5 +39,4 @@ func CloneRepository(cloneConfig *common.CloneConfiguration) (*git.Repository, s
 		return nil, dir, err
 	}
 	return repository, dir, nil
-
 }
