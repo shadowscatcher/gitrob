@@ -73,18 +73,23 @@ func NewRouter(s *Session) *gin.Engine {
 		ContentSecurityPolicy: CspPolicy,
 		ReferrerPolicy:        ReferrerPolicy,
 	}))
+
 	router.GET("/stats", func(c *gin.Context) {
 		c.JSON(http.StatusOK, s.Stats)
 	})
+
 	router.GET("/findings", func(c *gin.Context) {
 		c.JSON(http.StatusOK, s.Findings)
 	})
+
 	router.GET("/targets", func(c *gin.Context) {
 		c.JSON(http.StatusOK, s.Targets)
 	})
+
 	router.GET("/repositories", func(c *gin.Context) {
 		c.JSON(http.StatusOK, s.Repositories)
 	})
+
 	router.GET("/files/:owner/:repo/:commit/*path", fetchFile)
 
 	return router

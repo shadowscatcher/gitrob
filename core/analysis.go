@@ -256,6 +256,7 @@ func AnalyzeRepositories(sess *Session) {
 	var ch = make(chan *common.Repository, len(sess.Repositories))
 	var wg sync.WaitGroup
 	var threadNum int
+
 	if len(sess.Repositories) <= 1 {
 		threadNum = 1
 	} else if len(sess.Repositories) <= *sess.Options.Threads {
@@ -263,54 +264,60 @@ func AnalyzeRepositories(sess *Session) {
 	} else {
 		threadNum = *sess.Options.Threads
 	}
+
 	wg.Add(threadNum)
+
 	sess.Out.Debugf("Threads for repository analysis: %d\n", threadNum)
 
-	sess.Out.Importantf("Analyzing %d %s...\n", len(sess.Repositories), common.Pluralize(len(sess.Repositories), "repository", "repositories"))
+	sess.Out.Importantf("Analyzing %d %s...\n", len(sess.Repositories),
+		common.Pluralize(len(sess.Repositories), "repository", "repositories"))
 
 	for i := 0; i < threadNum; i++ {
-		go func(tid int) {
-			for {
-				sess.Out.Debugf("[THREAD #%d] Requesting new repository to analyze...\n", tid)
-				repo, ok := <-ch
-				if !ok {
-					sess.Out.Debugf("[THREAD #%d] No more tasks, marking WaitGroup as done\n", tid)
-					wg.Done()
-					return
-				}
-
-				clone, path, err := cloneRepository(sess, repo, tid)
-				if err != nil {
-					continue
-				}
-
-				history, err := getRepositoryHistory(sess, clone, repo, path, tid)
-				if err != nil {
-					continue
-				}
-
-				for _, commit := range history {
-					sess.Out.Debugf("[THREAD #%d][%s] Analyzing commit: %s\n", tid, *repo.CloneURL, commit.Hash)
-					changes, _ := common.GetChanges(commit, clone)
-					sess.Out.Debugf("[THREAD #%d][%s] %s changes in %d\n", tid, *repo.CloneURL, commit.Hash, len(changes))
-
-					findSecrets(sess, repo, commit, changes, tid)
-
-					sess.Stats.IncrementCommits()
-					sess.Out.Debugf("[THREAD #%d][%s] Done analyzing changes in %s\n", tid, *repo.CloneURL, commit.Hash)
-				}
-
-				sess.Out.Debugf("[THREAD #%d][%s] Done analyzing commits\n", tid, *repo.CloneURL)
-				deletePath(path, *repo.CloneURL, tid, sess)
-				sess.Out.Debugf("[THREAD #%d][%s] Deleted %s\n", tid, *repo.CloneURL, path)
-				sess.Stats.IncrementRepositories()
-				sess.Stats.UpdateProgress(sess.Stats.Repositories, len(sess.Repositories))
-			}
-		}(i)
+		go analyze(i, sess, ch, &wg)
 	}
 	for _, repo := range sess.Repositories {
 		ch <- repo
 	}
+
 	close(ch)
 	wg.Wait()
+}
+
+func analyze(threadID int, sess *Session, ch chan *common.Repository, wg *sync.WaitGroup) {
+	for {
+		sess.Out.Debugf("[THREAD #%d] Requesting new repository to analyze...\n", threadID)
+		repo, ok := <-ch
+		if !ok {
+			sess.Out.Debugf("[THREAD #%d] No more tasks, marking WaitGroup as done\n", threadID)
+			wg.Done()
+			return
+		}
+
+		clone, path, err := cloneRepository(sess, repo, threadID)
+		if err != nil {
+			continue
+		}
+
+		history, err := getRepositoryHistory(sess, clone, repo, path, threadID)
+		if err != nil {
+			continue
+		}
+
+		for _, commit := range history {
+			sess.Out.Debugf("[THREAD #%d][%s] Analyzing commit: %s\n", threadID, *repo.CloneURL, commit.Hash)
+			changes, _ := common.GetChanges(commit, clone)
+			sess.Out.Debugf("[THREAD #%d][%s] %s changes in %d\n", threadID, *repo.CloneURL, commit.Hash, len(changes))
+
+			findSecrets(sess, repo, commit, changes, threadID)
+
+			sess.Stats.IncrementCommits()
+			sess.Out.Debugf("[THREAD #%d][%s] Done analyzing changes in %s\n", threadID, *repo.CloneURL, commit.Hash)
+		}
+
+		sess.Out.Debugf("[THREAD #%d][%s] Done analyzing commits\n", threadID, *repo.CloneURL)
+		deletePath(path, *repo.CloneURL, threadID, sess)
+		sess.Out.Debugf("[THREAD #%d][%s] Deleted %s\n", threadID, *repo.CloneURL, path)
+		sess.Stats.IncrementRepositories()
+		sess.Stats.UpdateProgress(sess.Stats.Repositories, len(sess.Repositories))
+	}
 }
