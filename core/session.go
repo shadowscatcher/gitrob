@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gitrob/matching"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"io/ioutil"
 	"os"
 	"runtime"
@@ -65,6 +66,7 @@ type Session struct {
 	Targets         []*common.Owner
 	Repositories    []*common.Repository
 	Findings        []*matching.Finding
+	FoundUsers      *Users
 	IsGithubSession bool                `json:"-"` // do not unmarshal to json on save
 	Signatures      matching.Signatures `json:"-"` // do not unmarshal to json on save
 }
@@ -78,6 +80,7 @@ func (s *Session) Initialize() {
 	s.ValidateTokenConfig()
 	s.InitAPIClient()
 	s.InitRouter()
+	s.InitFoundUsers()
 }
 
 func (s *Session) InitSignatures() {
@@ -136,6 +139,11 @@ func (s *Session) AddFinding(finding *matching.Finding) {
 	s.Out.Infof("  Commit URL.: %s\n", finding.CommitURL)
 	s.Out.Infof(" ------------------------------------------------\n\n")
 	s.Stats.IncrementFindings()
+}
+
+func (s *Session) AddCommitUsers(commit *object.Commit) {
+	s.FoundUsers.Add(commit.Committer)
+	s.FoundUsers.Add(commit.Author)
 }
 
 func (s *Session) InitStats() {
@@ -214,6 +222,14 @@ func (s *Session) InitRouter() {
 			sess.Out.Fatalf("Errorf when starting web server: %s\n", err)
 		}
 	}(s)
+}
+
+func (s *Session) InitFoundUsers() {
+	if s.FoundUsers != nil {
+		return
+	}
+
+	s.FoundUsers = NewUsers(&s.Mutex)
 }
 
 func (s *Session) SaveToFile(location string) error {

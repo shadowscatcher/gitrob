@@ -15,10 +15,10 @@ import (
 
 const (
 	GithubBaseURI   = "https://raw.githubusercontent.com"
-	MaximumFileSize = 153600
 	GitLabBaseURI   = "https://gitlab.com"
 	CspPolicy       = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'"
 	ReferrerPolicy  = "no-referrer"
+	MaximumFileSize = 153600
 )
 
 var IsGithub bool
@@ -80,6 +80,10 @@ func NewRouter(s *Session) *gin.Engine {
 
 	router.GET("/findings", func(c *gin.Context) {
 		c.JSON(http.StatusOK, s.Findings)
+	})
+
+	router.GET("/users", func(c *gin.Context) {
+		c.JSON(http.StatusOK, s.FoundUsers.UniqueSignatures())
 	})
 
 	router.GET("/targets", func(c *gin.Context) {

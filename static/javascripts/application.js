@@ -412,3 +412,59 @@ var FindingModal = Backbone.View.extend({
         });
     }
 });
+
+var User = Backbone.Model.extend({
+    defaults: {
+        "Name": "",
+        "Email": ""
+    },
+})
+
+var Users = Backbone.Collection.extend({
+    url: "/users",
+    model: User,
+})
+
+window.users = new Users();
+
+var UsersView = Backbone.view.extend({
+    id: "users_container",
+    model: users,
+    pollingTicker: null,
+    durationTicker: null,
+    pollingInterval: 2000,
+
+    initialize: function () {
+        this.listenTo(this.model, "change", this.render);
+        this.startDurationTicker();
+        this.startPolling();
+    },
+    render: function () {
+        if (this.model.isFinished()) {
+            this.stopPolling();
+            this.stopDurationTicker();
+        }
+    },
+    startPolling: function () {
+        this.pollingTicker = setInterval(function () {
+            statsView.model.fetch();
+        }, this.pollingInterval);
+    },
+    stopPolling: function () {
+        if (this.pollingTicker !== null) {
+            clearInterval(this.pollingTicker);
+        }
+    },
+    startDurationTicker: function () {
+        this.DurationTicker = setInterval(function () {
+            statsView.updateDuration()
+        }, 1000);
+    },
+    stopDurationTicker: function () {
+        this.updateDuration();
+        if (this.durationTicker !== null) {
+            clearInterval(this.durationTicker);
+        }
+    },
+})
+window.usersView = new UsersView({el: $("#users_container")});

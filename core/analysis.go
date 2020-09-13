@@ -304,6 +304,7 @@ func analyze(threadID int, sess *Session, ch chan *common.Repository, wg *sync.W
 		}
 
 		for _, commit := range history {
+			sess.AddCommitUsers(commit)
 			sess.Out.Debugf("[THREAD #%d][%s] Analyzing commit: %s\n", threadID, *repo.CloneURL, commit.Hash)
 			changes, _ := common.GetChanges(commit, clone)
 			sess.Out.Debugf("[THREAD #%d][%s] %s changes in %d\n", threadID, *repo.CloneURL, commit.Hash, len(changes))
