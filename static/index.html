@@ -79,10 +79,10 @@
                 </div>
             </div>
             <div class="col-sm">
-                <div class="card text-center" id="card_signatures">
+                <div class="card text-center" id="card_users">
                     <div class="card-body">
-                        <h3 class="card-title" id="card_signatures_value"><a href="users.html">Open</a></h3>
-                        <p class="card-text" id="card_signatures_desc">signatures</p>
+                        <h3 class="card-title" id="card_users_value"><a href="users.html">Open</a></h3>
+                        <p class="card-text" id="card_users_desc">Users</p>
                     </div>
                 </div>
             </div>
@@ -145,9 +145,9 @@
     <td class="col-path"><code>
             <a href="#"><%= this.formattedFilePath() %></a>
         </code></td>
-    <td class="col-commit"><code><a href="<%- CommitUrl %>" rel="noopener noreferer" target="_blank"><%=
+    <td class="col-commit"><code><a href="<%- CommitURL %>" rel="noopener noreferer" target="_blank"><%=
                 this.model.shortCommitHash() %></a></code></th>
-    <td class="col-repository"><a href="<%- RepositoryUrl %>" rel="noopener noreferer" target="_blank"><%-
+    <td class="col-repository"><a href="<%- RepositoryURL %>" rel="noopener noreferer" target="_blank"><%-
             RepositoryOwner %>/<%- RepositoryName %></a></th>
 </script>
 
@@ -204,9 +204,9 @@
     <div class="modal-footer">
         <span class="text-muted font-italic font-weight-light"><span class="oi oi-lightbulb"></span> Tip: Browse findings by using the <span
                     class="oi oi-arrow-left"></span> and <span class="oi oi-arrow-right"></span> arrow keys.</span>
-        <a id="view-file" href="<%- FileUrl %>" rel="noopener noreferrer" target="_blank" class="btn btn-primary"
+        <a id="view-file" href="<%- FileURL %>" rel="noopener noreferrer" target="_blank" class="btn btn-primary"
            role="button">View file on <span><%= this.getHostName() %></span></a>
-        <a id="view-commit" href="<%- CommitUrl %>" rel="noopener noreferrer" target="_blank" class="btn btn-secondary"
+        <a id="view-commit" href="<%- CommitURL %>" rel="noopener noreferrer" target="_blank" class="btn btn-secondary"
            role="button">View commit on <span><%= this.getHostName() %></span></a>
     </div>
 </script>
@@ -217,13 +217,13 @@
     </div>
 </div>
 
-<script src="/javascripts/jquery-3.3.1.js"></script>
-<script src="/javascripts/underscore.js"></script>
-<script src="/javascripts/backbone.js"></script>
-<script src="/javascripts/popper.js"></script>
-<script src="/javascripts/bootstrap.js"></script>
-<script src="/javascripts/clipboard.js"></script>
-<script src="/javascripts/hexdump.js"></script>
-<script src="/javascripts/application.js"></script>
+<script src="javascripts/jquery-3.3.1.js"></script>
+<script src="javascripts/underscore.js"></script>
+<script src="javascripts/backbone.js"></script>
+<script src="javascripts/popper.js"></script>
+<script src="javascripts/bootstrap.js"></script>
+<script src="javascripts/clipboard.js"></script>
+<script src="javascripts/hexdump.js"></script>
+<script src="javascripts/application.js"></script>
 </body>
 </html>
