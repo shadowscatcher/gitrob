@@ -104,13 +104,10 @@ func deletePath(path, cloneURL string, threadID int, sess *Session) {
 	}
 }
 
-func createFinding(repo common.Repository,
-	commit *object.Commit,
-	change *object.Change,
-	fileSignature matching.FileSignature,
-	contentSignature matching.ContentSignature,
-	isGitHubSession bool) (*matching.Finding, error) {
-	finding := &matching.Finding{
+func createFinding(repo common.Repository, commit *object.Commit, change *object.Change,
+	fileSignature matching.FileSignature, contentSignature matching.ContentSignature,
+	repositoryURL, commitURL string) (*matching.Finding, error) {
+	f := &matching.Finding{
 		FilePath:                    common.GetChangePath(change),
 		Action:                      common.GetChangeAction(change),
 		FileSignatureDescription:    fileSignature.GetDescription(),
@@ -123,9 +120,17 @@ func createFinding(repo common.Repository,
 		CommitMessage:               strings.TrimSpace(commit.Message),
 		CommitAuthor:                commit.Author.String(),
 		CloneURL:                    *repo.CloneURL,
+		RepositoryURL:               repositoryURL,
+		CommitURL:                   commitURL,
 	}
-	err := finding.Initialize(isGitHubSession)
-	return finding, err
+
+	f.FileURL = fmt.Sprintf("%s/blob/%s/%s", f.RepositoryURL, f.CommitHash, f.FilePath)
+	id, err := f.GenerateID()
+	if err != nil {
+		return nil, err
+	}
+	f.ID = id
+	return f, err
 }
 
 func matchContent(sess *Session,
@@ -133,6 +138,7 @@ func matchContent(sess *Session,
 	repo common.Repository,
 	change *object.Change,
 	commit *object.Commit,
+	repositoryURL, commitURL string,
 	fileSignature matching.FileSignature,
 	threadID int) {
 	content, err := common.GetChangeContent(change)
@@ -150,7 +156,7 @@ func matchContent(sess *Session,
 			continue
 		}
 
-		finding, err := createFinding(repo, commit, change, fileSignature, contentSignature, sess.IsGithubSession)
+		finding, err := createFinding(repo, commit, change, fileSignature, contentSignature, repositoryURL, commitURL)
 		if err != nil {
 			sess.Out.Errorf("Errorf while performing content match with '%s': %s\n", contentSignature.Description, err)
 		} else {
@@ -159,7 +165,8 @@ func matchContent(sess *Session,
 	}
 }
 
-func findSecrets(sess *Session, repo *common.Repository, commit *object.Commit, changes object.Changes, threadID int) {
+func findSecrets(sess *Session, repo *common.Repository, commit *object.Commit, changes object.Changes, threadID int,
+	repositoryURL, commitURL string) {
 	for _, change := range changes {
 		path := common.GetChangePath(change)
 		matchTarget := matching.NewMatchTarget(path)
@@ -181,7 +188,7 @@ func findSecrets(sess *Session, repo *common.Repository, commit *object.Commit, 
 
 				if *sess.Options.Mode == matching.ModeFileMatch {
 					finding, err := createFinding(*repo, commit, change, fileSignature,
-						matching.ContentSignature{Description: "NA"}, sess.IsGithubSession)
+						matching.ContentSignature{Description: "NA"}, repositoryURL, commitURL)
 					if err != nil {
 						sess.Out.Errorf(fmt.Sprintf("Errorf while performing file match: %s\n", err))
 					} else {
@@ -190,14 +197,16 @@ func findSecrets(sess *Session, repo *common.Repository, commit *object.Commit, 
 				}
 
 				if *sess.Options.Mode == matching.ModeMixed {
-					matchContent(sess, matchTarget, *repo, change, commit, fileSignature, threadID)
+					matchContent(sess, matchTarget, *repo, change, commit, repositoryURL, commitURL, fileSignature,
+						threadID)
 				}
 
 				break
 			}
 			sess.Stats.IncrementFiles()
 		} else {
-			matchContent(sess, matchTarget, *repo, change, commit, matching.FileSignature{Description: "NA"}, threadID)
+			matchContent(sess, matchTarget, *repo, change, commit, repositoryURL, commitURL,
+				matching.FileSignature{Description: "NA"}, threadID)
 			sess.Stats.IncrementFiles()
 		}
 	}
@@ -303,13 +312,16 @@ func analyze(threadID int, sess *Session, ch chan *common.Repository, wg *sync.W
 			continue
 		}
 
+		repositoryURL := getRepositoryURL(*repo.Owner, *repo.Name, IsGithub)
+
 		for _, commit := range history {
-			sess.AddCommitUsers(commit)
-			sess.Out.Debugf("[THREAD #%d][%s] Analyzing commit: %s\n", threadID, *repo.CloneURL, commit.Hash)
+			commitURL := getCommitURL(repositoryURL, commit.Hash.String())
+			sess.AddCommitUsers(commit, commitURL)
 			changes, _ := common.GetChanges(commit, clone)
+			sess.Out.Debugf("[THREAD #%d][%s] Analyzing commit: %s\n", threadID, *repo.CloneURL, commit.Hash)
 			sess.Out.Debugf("[THREAD #%d][%s] %s changes in %d\n", threadID, *repo.CloneURL, commit.Hash, len(changes))
 
-			findSecrets(sess, repo, commit, changes, threadID)
+			findSecrets(sess, repo, commit, changes, threadID, repositoryURL, commitURL)
 
 			sess.Stats.IncrementCommits()
 			sess.Out.Debugf("[THREAD #%d][%s] Done analyzing changes in %s\n", threadID, *repo.CloneURL, commit.Hash)
@@ -321,4 +333,16 @@ func analyze(threadID int, sess *Session, ch chan *common.Repository, wg *sync.W
 		sess.Stats.IncrementRepositories()
 		sess.Stats.UpdateProgress(sess.Stats.Repositories, len(sess.Repositories))
 	}
+}
+
+func getRepositoryURL(repositoryOwner, repositoryName string, isGithub bool) string {
+	if isGithub {
+		return fmt.Sprintf("https://github.com/%s/%s", repositoryOwner, repositoryName)
+	}
+	results := common.CleanURLSpaces(repositoryOwner, repositoryName)
+	return fmt.Sprintf("https://gitlab.com/%s/%s", results[0], results[1])
+}
+
+func getCommitURL(repositoryURL, commitHash string) string {
+	return fmt.Sprintf("%s/commit/%s", repositoryURL, commitHash)
 }

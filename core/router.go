@@ -2,13 +2,12 @@ package core
 
 import (
 	"fmt"
+	"github.com/gin-contrib/static"
 	"io/ioutil"
 	"net/http"
 	"strings"
 
-	assetfs "github.com/elazarl/go-bindata-assetfs"
 	"github.com/gin-contrib/secure"
-	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"gitrob/common"
 )
@@ -41,18 +40,6 @@ func (b *BinaryFileSystem) Exists(prefix, filepath string) bool {
 	return false
 }
 
-func NewBinaryFileSystem(root string) *BinaryFileSystem {
-	fs := &assetfs.AssetFS{
-		Asset:     Asset,
-		AssetDir:  AssetDir,
-		AssetInfo: AssetInfo,
-		Prefix:    root,
-	}
-	return &BinaryFileSystem{
-		fs,
-	}
-}
-
 func NewRouter(s *Session) *gin.Engine {
 	IsGithub = s.IsGithubSession
 
@@ -63,7 +50,10 @@ func NewRouter(s *Session) *gin.Engine {
 	}
 
 	router := gin.New()
-	router.Use(static.Serve("/", NewBinaryFileSystem("static")))
+
+	router.LoadHTMLGlob("templates/*")
+
+	router.Use(static.ServeRoot("/", "static"))
 	router.Use(secure.New(secure.Config{
 		SSLRedirect:           false,
 		IsDevelopment:         false,
@@ -84,6 +74,16 @@ func NewRouter(s *Session) *gin.Engine {
 
 	router.GET("/users", func(c *gin.Context) {
 		c.JSON(http.StatusOK, s.FoundUsers.UniqueSignatures())
+	})
+
+	router.GET("/users.html", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "users.html", struct {
+			Session *Session
+			Users   []UserSignature
+		}{
+			Session: s,
+			Users:   s.FoundUsers.UniqueSignatures(),
+		})
 	})
 
 	router.GET("/targets", func(c *gin.Context) {

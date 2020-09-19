@@ -66,7 +66,7 @@ type Session struct {
 	Targets         []*common.Owner
 	Repositories    []*common.Repository
 	Findings        []*matching.Finding
-	FoundUsers      *Users
+	FoundUsers      *UniqueSignatures
 	IsGithubSession bool                `json:"-"` // do not unmarshal to json on save
 	Signatures      matching.Signatures `json:"-"` // do not unmarshal to json on save
 }
@@ -141,9 +141,8 @@ func (s *Session) AddFinding(finding *matching.Finding) {
 	s.Stats.IncrementFindings()
 }
 
-func (s *Session) AddCommitUsers(commit *object.Commit) {
-	s.FoundUsers.Add(commit.Committer)
-	s.FoundUsers.Add(commit.Author)
+func (s *Session) AddCommitUsers(commit *object.Commit, url string) {
+	s.FoundUsers.AddCommit(commit, url)
 }
 
 func (s *Session) InitStats() {
@@ -229,7 +228,7 @@ func (s *Session) InitFoundUsers() {
 		return
 	}
 
-	s.FoundUsers = NewUsers(&s.Mutex)
+	s.FoundUsers = NewUniqueSignatures(&s.Mutex)
 }
 
 func (s *Session) SaveToFile(location string) error {

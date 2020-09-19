@@ -3,7 +3,6 @@ module gitrob
 go 1.14
 
 require (
-	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/fatih/color v1.9.0
 	github.com/gin-contrib/secure v0.0.1
 	github.com/gin-contrib/static v0.0.0-20191128031702-f81c604d8ac2
