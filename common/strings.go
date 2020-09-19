@@ -8,7 +8,7 @@ import (
 
 var NewlineRegex = regexp.MustCompile(`\r?\n`)
 
-func Pluralize(count int, singular string, plural string) string {
+func Pluralize(count int, singular, plural string) string {
 	if count == 1 {
 		return singular
 	}

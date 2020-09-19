@@ -2,11 +2,11 @@ package core
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"gitrob/matching"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"io/ioutil"
 	"os"
-	"gitrob/matching"
 	"runtime"
 	"strings"
 	"sync"
@@ -20,12 +20,14 @@ import (
 )
 
 const (
-	GitHubAccessTokenEnvVariable = "GITROB_GITHUB_ACCESS_TOKEN"
-	GitLabAccessTokenEnvVariable = "GITROB_GITLAB_ACCESS_TOKEN"
+	GitHubAccessTokenEnvVariable = "GITROB_GITHUB_ACCESS_TOKEN" //nolint:gosec
+	GitLabAccessTokenEnvVariable = "GITROB_GITLAB_ACCESS_TOKEN" //nolint:gosec
 	StatusInitializing           = "initializing"
 	StatusGathering              = "gathering"
 	StatusAnalyzing              = "analyzing"
 	StatusFinished               = "finished"
+	GoMaxProcsOverhead           = 2 // main + web server
+	ProgressBarCap               = 100.0
 )
 
 type Stats struct {
@@ -54,18 +56,19 @@ type Session struct {
 	sync.Mutex
 
 	Version         string
-	Options         Options        `json:"-"` //do not unmarshal to json on save
-	Out             *common.Logger `json:"-"` //do not unmarshal to json on save
+	Options         Options        `json:"-"` // do not unmarshal to json on save
+	Out             *common.Logger `json:"-"` // do not unmarshal to json on save
 	Stats           *Stats
-	Github          Github         `json:"-"` //do not unmarshal to json on save
-	GitLab          GitLab         `json:"-"` //do not unmarshal to json on save
-	Client          common.IClient `json:"-"` //do not unmarshal to json on save
-	Router          *gin.Engine    `json:"-"` //do not unmarshal to json on save
+	Github          Github         `json:"-"` // do not unmarshal to json on save
+	GitLab          GitLab         `json:"-"` // do not unmarshal to json on save
+	Client          common.IClient `json:"-"` // do not unmarshal to json on save
+	Router          *gin.Engine    `json:"-"` // do not unmarshal to json on save
 	Targets         []*common.Owner
 	Repositories    []*common.Repository
 	Findings        []*matching.Finding
-	IsGithubSession bool                `json:"-"` //do not unmarshal to json on save
-	Signatures      matching.Signatures `json:"-"` //do not unmarshal to json on save
+	FoundUsers      *UniqueSignatures
+	IsGithubSession bool                `json:"-"` // do not unmarshal to json on save
+	Signatures      matching.Signatures `json:"-"` // do not unmarshal to json on save
 }
 
 func (s *Session) Initialize() {
@@ -77,13 +80,14 @@ func (s *Session) Initialize() {
 	s.ValidateTokenConfig()
 	s.InitAPIClient()
 	s.InitRouter()
+	s.InitFoundUsers()
 }
 
 func (s *Session) InitSignatures() {
 	s.Signatures = matching.Signatures{}
 	err := s.Signatures.Load(*s.Options.Mode)
 	if err != nil {
-		s.Out.Fatal("Error loading signatures: %s\n", err)
+		s.Out.Fatalf("Errorf loading signatures: %s\n", err)
 	}
 }
 
@@ -119,21 +123,26 @@ func (s *Session) AddFinding(finding *matching.Finding) {
 	defer s.Unlock()
 	const MaxStrLen = 100
 	s.Findings = append(s.Findings, finding)
-	s.Out.Warn(" %s: %s, %s\n", strings.ToUpper(finding.Action), "File Match: "+finding.FileSignatureDescription, "Content Match: "+finding.ContentSignatureDescription)
-	s.Out.Info("  Path......................: %s\n", finding.FilePath)
-	s.Out.Info("  Repo......................: %s\n", finding.CloneUrl)
-	s.Out.Info("  Message...................: %s\n", common.TruncateString(finding.CommitMessage, MaxStrLen))
-	s.Out.Info("  Author....................: %s\n", finding.CommitAuthor)
+	s.Out.Warnf(" %s: %s, %s\n", strings.ToUpper(finding.Action),
+		"File Match: "+finding.FileSignatureDescription, "Content Match: "+finding.ContentSignatureDescription)
+	s.Out.Infof("  Path......................: %s\n", finding.FilePath)
+	s.Out.Infof("  Repo......................: %s\n", finding.CloneURL)
+	s.Out.Infof("  Message...................: %s\n", common.TruncateString(finding.CommitMessage, MaxStrLen))
+	s.Out.Infof("  Author....................: %s\n", finding.CommitAuthor)
 	if finding.FileSignatureComment != "" {
-		s.Out.Info("  FileSignatureComment......: %s\n", common.TruncateString(finding.FileSignatureComment, MaxStrLen))
+		s.Out.Infof("  FileSignatureComment......: %s\n", common.TruncateString(finding.FileSignatureComment, MaxStrLen))
 	}
 	if finding.ContentSignatureComment != "" {
-		s.Out.Info("  ContentSignatureComment...:%s\n", common.TruncateString(finding.ContentSignatureComment, MaxStrLen))
+		s.Out.Infof("  ContentSignatureComment...:%s\n", common.TruncateString(finding.ContentSignatureComment, MaxStrLen))
 	}
-	s.Out.Info("  File URL...: %s\n", finding.FileUrl)
-	s.Out.Info("  Commit URL.: %s\n", finding.CommitUrl)
-	s.Out.Info(" ------------------------------------------------\n\n")
+	s.Out.Infof("  File URL...: %s\n", finding.FileURL)
+	s.Out.Infof("  Commit URL.: %s\n", finding.CommitURL)
+	s.Out.Infof(" ------------------------------------------------\n\n")
 	s.Stats.IncrementFindings()
+}
+
+func (s *Session) AddCommitUsers(commit *object.Commit, url string) {
+	s.FoundUsers.AddCommit(commit, url)
 }
 
 func (s *Session) InitStats() {
@@ -174,10 +183,10 @@ func (s *Session) InitAccessToken() {
 func (s *Session) ValidateTokenConfig() {
 	if *s.Options.Load == "" {
 		if s.GitLab.AccessToken != "" && s.Github.AccessToken != "" {
-			s.Out.Fatal("Both a GitLab and Github token are present.  Only one may be set.\n")
+			s.Out.Fatalf("Both a GitLab and Github token are present.  Only one may be set.\n")
 		}
 		if s.GitLab.AccessToken == "" && s.Github.AccessToken == "" {
-			s.Out.Fatal("No valid API token was found.\n")
+			s.Out.Fatalf("No valid API token was found.\n")
 		}
 	}
 	s.IsGithubSession = s.Github.AccessToken != ""
@@ -185,12 +194,12 @@ func (s *Session) ValidateTokenConfig() {
 
 func (s *Session) InitAPIClient() {
 	if s.IsGithubSession {
-		s.Client = gh.Client.NewClient(gh.Client{}, s.Github.AccessToken)
+		s.Client = gh.NewClient(s.Github.AccessToken)
 	} else {
 		var err error
-		s.Client, err = gl.Client.NewClient(gl.Client{}, s.GitLab.AccessToken, s.Out)
+		s.Client, err = gl.NewClient(s.GitLab.AccessToken, s.Out)
 		if err != nil {
-			s.Out.Fatal("Error initializing GitLab client: %s", err)
+			s.Out.Fatalf("Errorf initializing GitLab client: %s", err)
 		}
 	}
 }
@@ -200,7 +209,8 @@ func (s *Session) InitThreads() {
 		numCPUs := runtime.NumCPU()
 		s.Options.Threads = &numCPUs
 	}
-	runtime.GOMAXPROCS(*s.Options.Threads + 2) // thread count + main + web server
+
+	runtime.GOMAXPROCS(*s.Options.Threads + GoMaxProcsOverhead)
 }
 
 func (s *Session) InitRouter() {
@@ -208,17 +218,25 @@ func (s *Session) InitRouter() {
 	s.Router = NewRouter(s)
 	go func(sess *Session) {
 		if err := sess.Router.Run(bind); err != nil {
-			sess.Out.Fatal("Error when starting web server: %s\n", err)
+			sess.Out.Fatalf("Errorf when starting web server: %s\n", err)
 		}
 	}(s)
 }
 
+func (s *Session) InitFoundUsers() {
+	if s.FoundUsers != nil {
+		return
+	}
+
+	s.FoundUsers = NewUniqueSignatures(&s.Mutex)
+}
+
 func (s *Session) SaveToFile(location string) error {
-	sessionJson, err := json.Marshal(s)
+	sessionJSON, err := json.Marshal(s)
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(location, sessionJson, 0644)
+	err = ioutil.WriteFile(location, sessionJSON, 0644) //nolint:gosec
 	if err != nil {
 		return err
 	}
@@ -255,13 +273,13 @@ func (s *Stats) IncrementFindings() {
 	s.Findings++
 }
 
-func (s *Stats) UpdateProgress(current int, total int) {
+func (s *Stats) UpdateProgress(current, total int) {
 	s.Lock()
 	defer s.Unlock()
 	if current >= total {
-		s.Progress = 100.0
+		s.Progress = ProgressBarCap
 	} else {
-		s.Progress = (float64(current) * float64(100)) / float64(total)
+		s.Progress = (float64(current) * ProgressBarCap) / float64(total)
 	}
 }
 
@@ -274,19 +292,19 @@ func NewSession() (*Session, error) {
 	}
 
 	if *session.Options.Save != "" && common.FileExists(*session.Options.Save) {
-		return nil, errors.New(fmt.Sprintf("File: %s already exists.", *session.Options.Save))
+		return nil, fmt.Errorf("file already exists: %s", *session.Options.Save)
 	}
 
 	if *session.Options.Load != "" {
 		if !common.FileExists(*session.Options.Load) {
-			return nil, errors.New(fmt.Sprintf("Session file %s does not exist or is not readable.", *session.Options.Load))
+			return nil, fmt.Errorf("session file does not exist or is not readable: %s", *session.Options.Load)
 		}
 		data, err := ioutil.ReadFile(*session.Options.Load)
 		if err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(data, &session); err != nil {
-			return nil, errors.New(fmt.Sprintf("Session file %s is corrupt or generated by an old version of Gitrob.", *session.Options.Load))
+			return nil, fmt.Errorf("session file is corrupt or generated by an old version of Gitrob: %s", *session.Options.Load)
 		}
 	}
 

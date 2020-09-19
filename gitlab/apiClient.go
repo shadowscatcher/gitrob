@@ -13,12 +13,17 @@ type Client struct {
 	logger    *common.Logger
 }
 
-func (c Client) NewClient(token string, logger *common.Logger) (Client, error) {
+type projectsGetter func() ([]*gitlab.Project, *gitlab.Response, error)
+
+func NewClient(token string, logger *common.Logger) (*Client, error) {
+	c := &Client{}
 	var err error
+
 	c.apiClient, err = gitlab.NewClient(token)
 	if err != nil {
-		return Client{}, err
+		return nil, err
 	}
+
 	c.apiClient.UserAgent = common.UserAgent
 	c.logger = logger
 	return c, nil
@@ -46,28 +51,28 @@ func (c Client) GetUserOrOrganization(login string) (*common.Owner, error) {
 			Email:     gitlab.String(user.PublicEmail),
 			Bio:       gitlab.String(user.Bio),
 		}, nil
-	} else {
-		id := int64(org.ID)
-		return &common.Owner{
-			Login:     gitlab.String(org.Name),
-			ID:        &id,
-			Type:      gitlab.String(common.TargetTypeOrganization),
-			Name:      gitlab.String(org.Name),
-			AvatarURL: gitlab.String(org.AvatarURL),
-			URL:       gitlab.String(org.WebURL),
-			Company:   gitlab.String(org.FullName),
-			Blog:      emptyString,
-			Location:  emptyString,
-			Email:     emptyString,
-			Bio:       gitlab.String(org.Description),
-		}, nil
 	}
+
+	id := int64(org.ID)
+	return &common.Owner{
+		Login:     gitlab.String(org.Name),
+		ID:        &id,
+		Type:      gitlab.String(common.TargetTypeOrganization),
+		Name:      gitlab.String(org.Name),
+		AvatarURL: gitlab.String(org.AvatarURL),
+		URL:       gitlab.String(org.WebURL),
+		Company:   gitlab.String(org.FullName),
+		Blog:      emptyString,
+		Location:  emptyString,
+		Email:     emptyString,
+		Bio:       gitlab.String(org.Description),
+	}, nil
 }
 
-func (c Client) GetOrganizationMembers(target common.Owner) ([]*common.Owner, error) {
+func (c Client) GetOrganizationMembers(target *common.Owner) ([]*common.Owner, error) {
 	var allMembers []*common.Owner
 	opt := &gitlab.ListGroupMembersOptions{}
-	sID := strconv.FormatInt(*target.ID, 10) //safely downcast an int64 to an int
+	sID := strconv.FormatInt(*target.ID, 10) // safely downcast an int64 to an int
 	for {
 		members, resp, err := c.apiClient.Groups.ListAllGroupMembers(sID, opt)
 		if err != nil {
@@ -89,7 +94,7 @@ func (c Client) GetOrganizationMembers(target common.Owner) ([]*common.Owner, er
 	return allMembers, nil
 }
 
-func (c Client) GetRepositoriesFromOwner(target common.Owner) ([]*common.Repository, error) {
+func (c Client) GetRepositoriesFromOwner(target *common.Owner) ([]*common.Repository, error) {
 	var allProjects []*common.Repository
 	id := int(*target.ID)
 	if *target.Type == common.TargetTypeUser {
@@ -97,17 +102,13 @@ func (c Client) GetRepositoriesFromOwner(target common.Owner) ([]*common.Reposit
 		if err != nil {
 			return nil, err
 		}
-		for _, project := range userProjects {
-			allProjects = append(allProjects, project)
-		}
+		allProjects = append(allProjects, userProjects...)
 	} else {
 		groupProjects, err := c.getGroupProjects(target)
 		if err != nil {
 			return nil, err
 		}
-		for _, project := range groupProjects {
-			allProjects = append(allProjects, project)
-		}
+		allProjects = append(allProjects, groupProjects...)
 	}
 	return allProjects, nil
 }
@@ -118,8 +119,8 @@ func (c Client) getUser(login string) (*gitlab.User, error) {
 		return nil, err
 	}
 	if len(users) == 0 {
-		return nil, fmt.Errorf("No GitLab %s or %s %s was found.  If you are targeting a GitLab group, be sure to"+
-			" use an ID in place of a name.",
+		return nil, fmt.Errorf("no GitLab %s or %s %s was found.  If you are targeting a GitLab group, be sure to"+
+			" use an ID in place of a name",
 			strings.ToLower(common.TargetTypeUser),
 			strings.ToLower(common.TargetTypeOrganization),
 			login)
@@ -140,50 +141,33 @@ func (c Client) getOrganization(login string) (*gitlab.Group, error) {
 }
 
 func (c Client) getUserProjects(id int) ([]*common.Repository, error) {
-	var allUserProjects []*common.Repository
 	listUserProjectsOps := &gitlab.ListProjectsOptions{}
-	for {
-		projects, response, err := c.apiClient.Projects.ListUserProjects(id, listUserProjectsOps)
-		if err != nil {
-			return nil, err
-		}
-		for _, project := range projects {
-			//don't capture forks
-			if project.ForkedFromProject == nil {
-				id := int64(project.ID)
-				p := common.Repository{
-					Owner:         gitlab.String(project.Owner.Username),
-					ID:            &id,
-					Name:          gitlab.String(project.Name),
-					FullName:      gitlab.String(project.NameWithNamespace),
-					CloneURL:      gitlab.String(project.HTTPURLToRepo),
-					URL:           gitlab.String(project.WebURL),
-					DefaultBranch: gitlab.String(project.DefaultBranch),
-					Description:   gitlab.String(project.Description),
-					Homepage:      gitlab.String(project.WebURL),
-				}
-				allUserProjects = append(allUserProjects, &p)
-			}
-		}
-		if response.NextPage == 0 {
-			break
-		}
-		listUserProjectsOps.Page = response.NextPage
+	getter := func() ([]*gitlab.Project, *gitlab.Response, error) {
+		return c.apiClient.Projects.ListUserProjects(id, listUserProjectsOps)
 	}
-	return allUserProjects, nil
+	increasePage := func(page int) { listUserProjectsOps.Page = page }
+	return c.getProjects(getter, increasePage)
 }
 
-func (c Client) getGroupProjects(target common.Owner) ([]*common.Repository, error) {
-	var allGroupProjects []*common.Repository
+func (c Client) getGroupProjects(target *common.Owner) ([]*common.Repository, error) {
 	listGroupProjectsOps := &gitlab.ListGroupProjectsOptions{}
 	id := strconv.FormatInt(*target.ID, 10)
+	getter := func() ([]*gitlab.Project, *gitlab.Response, error) {
+		return c.apiClient.Groups.ListGroupProjects(id, listGroupProjectsOps)
+	}
+	increasePage := func(page int) { listGroupProjectsOps.Page = page }
+	return c.getProjects(getter, increasePage)
+}
+
+func (c Client) getProjects(getter projectsGetter, increasePage func(int)) ([]*common.Repository, error) {
+	var allGroupProjects []*common.Repository
 	for {
-		projects, response, err := c.apiClient.Groups.ListGroupProjects(id, listGroupProjectsOps)
+		projects, response, err := getter()
 		if err != nil {
 			return nil, err
 		}
 		for _, project := range projects {
-			//don't capture forks
+			// don't capture forks
 			if project.ForkedFromProject == nil {
 				id := int64(project.ID)
 				p := common.Repository{
@@ -203,7 +187,8 @@ func (c Client) getGroupProjects(target common.Owner) ([]*common.Repository, err
 		if response.NextPage == 0 {
 			break
 		}
-		listGroupProjectsOps.Page = response.NextPage
+		increasePage(response.NextPage)
 	}
+
 	return allGroupProjects, nil
 }

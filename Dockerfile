@@ -13,4 +13,5 @@ COPY --from=build /go/src/github.com/gitrob \
      /go/src/github.com/gitrob/filesignatures.json \
      /go/src/github.com/gitrob/contentsignatures.json \
     ./
+COPY static/ static/
 ENTRYPOINT ["./gitrob"]

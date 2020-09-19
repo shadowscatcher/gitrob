@@ -4,15 +4,17 @@ import (
 	"context"
 
 	"github.com/google/go-github/github"
-	"golang.org/x/oauth2"
 	"gitrob/common"
+	"golang.org/x/oauth2"
 )
 
 type Client struct {
 	apiClient *github.Client
 }
 
-func (c Client) NewClient(token string) (apiClient Client) {
+func NewClient(token string) *Client {
+	c := &Client{}
+
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
@@ -44,7 +46,7 @@ func (c Client) GetUserOrOrganization(login string) (*common.Owner, error) {
 	}, nil
 }
 
-func (c Client) GetRepositoriesFromOwner(target common.Owner) ([]*common.Repository, error) {
+func (c Client) GetRepositoriesFromOwner(target *common.Owner) ([]*common.Repository, error) {
 	var allRepos []*common.Repository
 	ctx := context.Background()
 	opt := &github.RepositoryListOptions{
@@ -81,7 +83,7 @@ func (c Client) GetRepositoriesFromOwner(target common.Owner) ([]*common.Reposit
 	return allRepos, nil
 }
 
-func (c Client) GetOrganizationMembers(target common.Owner) ([]*common.Owner, error) {
+func (c Client) GetOrganizationMembers(target *common.Owner) ([]*common.Owner, error) {
 	var allMembers []*common.Owner
 	ctx := context.Background()
 	opt := &github.ListMembersOptions{}

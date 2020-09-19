@@ -1,0 +1,46 @@
+<html lang="en">
+<head>
+    <style type="text/css">
+        body {
+            background: #202020;
+            color: #dddddd;
+        }
+
+        td {
+            border: 1px solid #666666;
+            padding: 10px;
+        }
+    </style>
+    <title>Gitrob email findings</title>
+</head>
+
+<body>
+<h1>Unique user signatures for commits in all session repositories</h1>
+<p><a href="/">Back to main</a></p>
+<table>
+    <thead>
+    <tr>
+        <th>Username</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Commit</th>
+        <th>Patch</th>
+        <th>When</th>
+    </tr>
+    </thead>
+    <tbody>
+        {{range $usr := .Users}}
+            <tr>
+                <td>{{$usr.Username}}</td>
+                <td><b>{{$usr.Email}}</b></td>
+                <td>{{$usr.Role}}</td>
+                <td><a href="{{$usr.URL}}">Commit</a></td>
+                <td><a href="{{$usr.URL}}.patch">Patch</a></td>
+                <td>{{$usr.When}}</td>
+            </tr>
+        {{end}}
+    </tbody>
+</table>
+</body>
+
+</html>

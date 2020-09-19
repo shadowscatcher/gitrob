@@ -12,9 +12,8 @@ import (
 )
 
 func CloneRepository(cloneConfig *common.CloneConfiguration) (*git.Repository, string, error) {
-
 	cloneOptions := &git.CloneOptions{
-		URL:           *cloneConfig.Url,
+		URL:           *cloneConfig.URL,
 		Depth:         *cloneConfig.Depth,
 		ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", *cloneConfig.Branch)),
 		SingleBranch:  true,
@@ -25,7 +24,7 @@ func CloneRepository(cloneConfig *common.CloneConfiguration) (*git.Repository, s
 	var err error
 	var dir string
 	if !*cloneConfig.InMemClone {
-		dir, err := ioutil.TempDir("", "gitrob")
+		dir, err = ioutil.TempDir("", "gitrob")
 		if err != nil {
 			return nil, "", err
 		}

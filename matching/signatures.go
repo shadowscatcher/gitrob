@@ -2,10 +2,9 @@ package matching
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"gitrob/common"
+	"io/ioutil"
 )
 
 type Signatures struct {
@@ -15,7 +14,7 @@ type Signatures struct {
 
 func (s *Signatures) loadSignatures(path string) error {
 	if !common.FileExists(path) {
-		return errors.New(fmt.Sprintf("Missing signature file: %s.\n", path))
+		return fmt.Errorf("missing signature file: %s", path)
 	}
 	data, readError := ioutil.ReadFile(path)
 	if readError != nil {
@@ -29,13 +28,13 @@ func (s *Signatures) loadSignatures(path string) error {
 
 func (s *Signatures) Load(mode int) error {
 	var e error
-	if mode != 3 {
+	if mode != ModeContentMatch {
 		e = s.loadSignatures("./filesignatures.json")
 		if e != nil {
 			return e
 		}
 	}
-	if mode != 1 {
+	if mode != ModeFileMatch {
 		//source:  https://github.com/dxa4481/truffleHogRegexes/blob/master/truffleHogRegexes/regexes.json
 		e = s.loadSignatures("./contentsignatures.json")
 		if e != nil {
