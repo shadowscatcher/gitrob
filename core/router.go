@@ -73,17 +73,11 @@ func NewRouter(s *Session) *gin.Engine {
 	})
 
 	router.GET("/users", func(c *gin.Context) {
-		c.JSON(http.StatusOK, s.FoundUsers.UniqueSignatures())
+		c.JSON(http.StatusOK, s.Users)
 	})
 
 	router.GET("/users.html", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "users.html", struct {
-			Session *Session
-			Users   []UserSignature
-		}{
-			Session: s,
-			Users:   s.FoundUsers.UniqueSignatures(),
-		})
+		c.HTML(http.StatusOK, "users.html", s)
 	})
 
 	router.GET("/targets", func(c *gin.Context) {

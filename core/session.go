@@ -52,8 +52,17 @@ type GitLab struct {
 	AccessToken string `json:"-"`
 }
 
+type UserSignature struct {
+	Role     string    `json:"role"`
+	Username string    `json:"username"`
+	Email    string    `json:"email"`
+	URL      string    `json:"url"`
+	When     time.Time `json:"when"`
+}
+
 type Session struct {
 	sync.Mutex
+	uniqueSignatures map[string]interface{}
 
 	Version         string
 	Options         Options        `json:"-"` // do not unmarshal to json on save
@@ -66,7 +75,7 @@ type Session struct {
 	Targets         []*common.Owner
 	Repositories    []*common.Repository
 	Findings        []*matching.Finding
-	FoundUsers      *UniqueSignatures
+	Users           []UserSignature
 	IsGithubSession bool                `json:"-"` // do not unmarshal to json on save
 	Signatures      matching.Signatures `json:"-"` // do not unmarshal to json on save
 }
@@ -142,7 +151,12 @@ func (s *Session) AddFinding(finding *matching.Finding) {
 }
 
 func (s *Session) AddCommitUsers(commit *object.Commit, url string) {
-	s.FoundUsers.AddCommit(commit, url)
+	s.Lock()
+	defer s.Unlock()
+	s.addSignature(commit.Author, url, "author")
+	if !credsEqual(commit) {
+		s.addSignature(commit.Committer, url, "committer")
+	}
 }
 
 func (s *Session) InitStats() {
@@ -224,11 +238,8 @@ func (s *Session) InitRouter() {
 }
 
 func (s *Session) InitFoundUsers() {
-	if s.FoundUsers != nil {
-		return
-	}
-
-	s.FoundUsers = NewUniqueSignatures(&s.Mutex)
+	s.uniqueSignatures = make(map[string]interface{})
+	s.Users = make([]UserSignature, 0)
 }
 
 func (s *Session) SaveToFile(location string) error {
@@ -241,6 +252,29 @@ func (s *Session) SaveToFile(location string) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Session) userExists(signatureID string) bool {
+	_, ok := s.uniqueSignatures[signatureID]
+	return ok
+}
+
+func (s *Session) addSignature(sig object.Signature, url, role string) {
+	if sig.Email == "" && sig.Name == "" {
+		return
+	}
+
+	id := sig.String()
+	if !s.userExists(id) {
+		s.uniqueSignatures[id] = struct{}{}
+		s.Users = append(s.Users, UserSignature{
+			Role:     role,
+			Username: sig.Name,
+			Email:    sig.Email,
+			URL:      url,
+			When:     sig.When,
+		})
+	}
 }
 
 func (s *Stats) IncrementTargets() {
@@ -312,4 +346,8 @@ func NewSession() (*Session, error) {
 	session.Initialize()
 
 	return &session, nil
+}
+
+func credsEqual(commit *object.Commit) bool {
+	return commit.Author.Name == commit.Committer.Name && commit.Author.Email == commit.Committer.Email
 }
