@@ -217,24 +217,18 @@ func cloneRepository(sess *Session, repo *common.Repository, threadID int) (*git
 	sess.Out.Debugf("[THREAD #%d][%s] Cloning repository...\n", threadID, *repo.CloneURL)
 
 	cloneConfig := common.CloneConfiguration{
-		URL:        repo.CloneURL,
-		Branch:     repo.DefaultBranch,
-		Depth:      sess.Options.CommitDepth,
-		Token:      &sess.GitLab.AccessToken,
-		InMemClone: sess.Options.InMemClone,
+		URL:        *repo.CloneURL,
+		Branch:     *repo.DefaultBranch,
+		Depth:      *sess.Options.CommitDepth,
+		InMemClone: *sess.Options.InMemClone,
 	}
 
 	var clone *git.Repository
 	var path string
 	var err error
+	cloner := getCloner(repo, sess)
+	clone, path, err = cloner.CloneRepository(cloneConfig)
 
-	if sess.IsGithubSession {
-		clone, path, err = github.CloneRepository(&cloneConfig)
-	} else {
-		userName := "oauth2"
-		cloneConfig.Username = &userName
-		clone, path, err = gitlab.CloneRepository(&cloneConfig)
-	}
 	if err != nil {
 		if err.Error() != "remote repository is empty" {
 			sess.Out.Errorf("Errorf cloning repository %s: %s\n", *repo.CloneURL, err)
@@ -245,6 +239,15 @@ func cloneRepository(sess *Session, repo *common.Repository, threadID int) (*git
 	}
 	sess.Out.Debugf("[THREAD #%d][%s] Cloned repository to: %s\n", threadID, *repo.CloneURL, path)
 	return clone, path, err
+}
+
+// will need that later
+//nolint:unparam
+func getCloner(repo *common.Repository, sess *Session) common.Cloner {
+	if sess.IsGithubSession {
+		return github.NewCloner()
+	}
+	return gitlab.NewCloner("oauth2", sess.GitLab.AccessToken)
 }
 
 func getRepositoryHistory(sess *Session, clone *git.Repository, repo *common.Repository, path string, threadID int) (

@@ -11,11 +11,18 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
-func CloneRepository(cloneConfig *common.CloneConfiguration) (*git.Repository, string, error) {
+type Cloner struct {
+}
+
+func NewCloner() *Cloner {
+	return &Cloner{}
+}
+
+func (c *Cloner) CloneRepository(cloneConfig common.CloneConfiguration) (*git.Repository, string, error) {
 	cloneOptions := &git.CloneOptions{
-		URL:           *cloneConfig.URL,
-		Depth:         *cloneConfig.Depth,
-		ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", *cloneConfig.Branch)),
+		URL:           cloneConfig.URL,
+		Depth:         cloneConfig.Depth,
+		ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", cloneConfig.Branch)),
 		SingleBranch:  true,
 		Tags:          git.NoTags,
 	}
@@ -23,7 +30,7 @@ func CloneRepository(cloneConfig *common.CloneConfiguration) (*git.Repository, s
 	var repository *git.Repository
 	var err error
 	var dir string
-	if !*cloneConfig.InMemClone {
+	if !cloneConfig.InMemClone {
 		dir, err = ioutil.TempDir("", "gitrob")
 		if err != nil {
 			return nil, "", err

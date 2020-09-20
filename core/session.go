@@ -69,10 +69,10 @@ type Session struct {
 	Options         Options        `json:"-"` // do not unmarshal to json on save
 	Out             *common.Logger `json:"-"` // do not unmarshal to json on save
 	Stats           *Stats
-	Github          Github         `json:"-"` // do not unmarshal to json on save
-	GitLab          GitLab         `json:"-"` // do not unmarshal to json on save
-	Client          common.IClient `json:"-"` // do not unmarshal to json on save
-	Router          *gin.Engine    `json:"-"` // do not unmarshal to json on save
+	Github          Github                  `json:"-"` // do not unmarshal to json on save
+	GitLab          GitLab                  `json:"-"` // do not unmarshal to json on save
+	Client          common.VcsHostingClient `json:"-"` // do not unmarshal to json on save
+	Router          *gin.Engine             `json:"-"` // do not unmarshal to json on save
 	Targets         []*common.Owner
 	Repositories    []*common.Repository
 	Findings        []*matching.Finding

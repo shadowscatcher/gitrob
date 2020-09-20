@@ -10,23 +10,35 @@ import (
 	"io/ioutil"
 )
 
-func CloneRepository(cloneConfig *common.CloneConfiguration) (*git.Repository, string, error) {
+type Cloner struct {
+	username string
+	token    string
+}
+
+func NewCloner(username, token string) *Cloner {
+	return &Cloner{
+		username: username,
+		token:    token,
+	}
+}
+
+func (c *Cloner) CloneRepository(cloneConfig common.CloneConfiguration) (*git.Repository, string, error) {
 	cloneOptions := &git.CloneOptions{
-		URL:           *cloneConfig.URL,
-		Depth:         *cloneConfig.Depth,
-		ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", *cloneConfig.Branch)),
+		URL:           cloneConfig.URL,
+		Depth:         cloneConfig.Depth,
+		ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", cloneConfig.Branch)),
 		SingleBranch:  true,
 		Tags:          git.NoTags,
 		Auth: &http.BasicAuth{
-			Username: *cloneConfig.Username,
-			Password: *cloneConfig.Token,
+			Username: c.username,
+			Password: c.token,
 		},
 	}
 
 	var repository *git.Repository
 	var err error
 	var dir string
-	if !*cloneConfig.InMemClone {
+	if !cloneConfig.InMemClone {
 		dir, err = ioutil.TempDir("", "gitrob")
 		if err != nil {
 			return nil, "", err
