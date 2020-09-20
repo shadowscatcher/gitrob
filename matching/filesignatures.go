@@ -5,17 +5,11 @@ import (
 	"regexp"
 )
 
-type FileSignatureType struct {
-	Extension string
-	Filename  string
-	Path      string
-}
-
-var fileSignatureTypes = FileSignatureType{
-	Extension: "extension",
-	Filename:  "filename",
-	Path:      "path",
-}
+const (
+	ExtensionSignatureType = "extension"
+	FilenameSignatureType  = "filename"
+	PathSignatureType      = "path"
+)
 
 type FileSignature struct {
 	Part        string
@@ -27,11 +21,11 @@ type FileSignature struct {
 func (f FileSignature) Match(target MatchTarget) (bool, error) {
 	var haystack *string
 	switch f.Part {
-	case fileSignatureTypes.Path:
+	case PathSignatureType:
 		haystack = &target.Path
-	case fileSignatureTypes.Filename:
+	case FilenameSignatureType:
 		haystack = &target.Filename
-	case fileSignatureTypes.Extension:
+	case ExtensionSignatureType:
 		haystack = &target.Extension
 	default:
 		return false, fmt.Errorf("unrecognized 'Part' parameter: %s", f.Part)

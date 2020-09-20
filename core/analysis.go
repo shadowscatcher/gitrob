@@ -111,10 +111,10 @@ func createFinding(repo common.Repository, commit *object.Commit, change *object
 	f := &matching.Finding{
 		FilePath:                    common.GetChangePath(change),
 		Action:                      common.GetChangeAction(change),
-		FileSignatureDescription:    fileSignature.GetDescription(),
-		FileSignatureComment:        fileSignature.GetComment(),
-		ContentSignatureDescription: contentSignature.GetDescription(),
-		ContentSignatureComment:     contentSignature.GetComment(),
+		FileSignatureDescription:    fileSignature.Description,
+		FileSignatureComment:        fileSignature.Comment,
+		ContentSignatureDescription: contentSignature.Description,
+		ContentSignatureComment:     contentSignature.Comment,
 		RepositoryOwner:             *repo.Owner,
 		RepositoryName:              *repo.Name,
 		CommitHash:                  commit.Hash.String(),
@@ -234,14 +234,13 @@ func cloneRepository(sess *Session, repo *common.Repository, threadID int) (*git
 			sess.Out.Errorf("Errorf cloning repository %s: %s\n", *repo.CloneURL, err)
 		}
 		sess.Stats.IncrementRepositories()
-		sess.Stats.UpdateProgress(sess.Stats.Repositories, len(sess.Repositories))
+		sess.Stats.UpdateProgress(sess.Stats.Repositories, int32(len(sess.Repositories)))
 		return nil, "", err
 	}
 	sess.Out.Debugf("[THREAD #%d][%s] Cloned repository to: %s\n", threadID, *repo.CloneURL, path)
 	return clone, path, err
 }
 
-// will need that later
 //nolint:unparam
 func getCloner(repo *common.Repository, sess *Session) common.Cloner {
 	if sess.IsGithubSession {
@@ -257,7 +256,7 @@ func getRepositoryHistory(sess *Session, clone *git.Repository, repo *common.Rep
 		sess.Out.Errorf("[THREAD #%d][%s] Errorf getting commit history: %s\n", threadID, *repo.CloneURL, err)
 		deletePath(path, *repo.CloneURL, threadID, sess)
 		sess.Stats.IncrementRepositories()
-		sess.Stats.UpdateProgress(sess.Stats.Repositories, len(sess.Repositories))
+		sess.Stats.UpdateProgress(sess.Stats.Repositories, int32(len(sess.Repositories)))
 		return nil, err
 	}
 	sess.Out.Debugf("[THREAD #%d][%s] Number of commits: %d\n", threadID, *repo.CloneURL, len(history))
@@ -335,7 +334,7 @@ func analyze(threadID int, sess *Session, ch chan *common.Repository, wg *sync.W
 		deletePath(path, *repo.CloneURL, threadID, sess)
 		sess.Out.Debugf("[THREAD #%d][%s] Deleted %s\n", threadID, *repo.CloneURL, path)
 		sess.Stats.IncrementRepositories()
-		sess.Stats.UpdateProgress(sess.Stats.Repositories, len(sess.Repositories))
+		sess.Stats.UpdateProgress(sess.Stats.Repositories, int32(len(sess.Repositories)))
 	}
 }
 

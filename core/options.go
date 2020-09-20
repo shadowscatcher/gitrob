@@ -21,7 +21,7 @@ type Options struct {
 	Threads           *int
 }
 
-func ParseOptions() (Options, error) {
+func ParseOptions() Options {
 	options := Options{
 		BindAddress:       flag.String("bind-address", "127.0.0.1", "Address to bind web server to"),
 		CommitDepth:       flag.Int("commit-depth", 500, "Number of repository commits to process"),
@@ -41,5 +41,5 @@ func ParseOptions() (Options, error) {
 	flag.Parse()
 	options.Logins = flag.Args()
 
-	return options, nil
+	return options
 }

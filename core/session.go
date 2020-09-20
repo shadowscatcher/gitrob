@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gitrob/common"
@@ -37,12 +38,12 @@ type Stats struct {
 	FinishedAt   time.Time
 	Status       string
 	Progress     float64
-	Targets      int
-	Repositories int
-	Commits      int
-	Files        int
-	Findings     int
-	Users        int
+	Targets      int32
+	Repositories int32
+	Commits      int32
+	Files        int32
+	Findings     int32
+	Users        int32
 }
 
 type Github struct {
@@ -283,42 +284,30 @@ func (s *Session) addSignature(sig object.Signature, url, role string) {
 }
 
 func (s *Stats) IncrementTargets() {
-	s.Lock()
-	defer s.Unlock()
-	s.Targets++
+	atomic.AddInt32(&s.Targets, 1)
 }
 
 func (s *Stats) IncrementRepositories() {
-	s.Lock()
-	defer s.Unlock()
-	s.Repositories++
+	atomic.AddInt32(&s.Repositories, 1)
 }
 
 func (s *Stats) IncrementCommits() {
-	s.Lock()
-	defer s.Unlock()
-	s.Commits++
+	atomic.AddInt32(&s.Commits, 1)
 }
 
 func (s *Stats) IncrementFiles() {
-	s.Lock()
-	defer s.Unlock()
-	s.Files++
+	atomic.AddInt32(&s.Files, 1)
 }
 
 func (s *Stats) IncrementFindings() {
-	s.Lock()
-	defer s.Unlock()
-	s.Findings++
+	atomic.AddInt32(&s.Findings, 1)
 }
 
 func (s *Stats) IncrementUsers() {
-	s.Lock()
-	defer s.Unlock()
-	s.Users++
+	atomic.AddInt32(&s.Users, 1)
 }
 
-func (s *Stats) UpdateProgress(current, total int) {
+func (s *Stats) UpdateProgress(current, total int32) {
 	s.Lock()
 	defer s.Unlock()
 	if current >= total {
@@ -329,12 +318,9 @@ func (s *Stats) UpdateProgress(current, total int) {
 }
 
 func NewSession() (*Session, error) {
-	var err error
 	var session Session
 
-	if session.Options, err = ParseOptions(); err != nil {
-		return nil, err
-	}
+	session.Options = ParseOptions()
 
 	if *session.Options.Save != "" && common.FileExists(*session.Options.Save) {
 		return nil, fmt.Errorf("file already exists: %s", *session.Options.Save)
