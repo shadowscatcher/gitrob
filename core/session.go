@@ -239,6 +239,9 @@ func (s *Session) InitRouter() {
 
 func (s *Session) InitFoundUsers() {
 	s.uniqueSignatures = make(map[string]interface{})
+	if s.Users != nil {
+		return
+	}
 	s.Users = make([]UserSignature, 0)
 }
 

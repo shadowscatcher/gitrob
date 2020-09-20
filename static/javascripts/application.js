@@ -35,7 +35,7 @@ var Stats = Backbone.Model.extend({
 window.stats = new Stats;
 
 var Finding = Backbone.Model.extend({
-    idAttribute: "Id",
+    idAttribute: "ID",
     testFileIndicators: ["test", "_spec", "fixture", "mock", "stub", "fake", "demo", "sample"],
     shortCommitHash: function () {
         return this.get("CommitHash").substr(0, 7);
@@ -336,7 +336,7 @@ var FindingModal = Backbone.View.extend({
         $("#modal_file_hexdump").show();
     },
     getHostName: function () {
-        if (this.model.get("CommitUrl").indexOf("github") !== -1) return "Github";
+        if (this.model.get("CommitURL").indexOf("github") !== -1) return "Github";
         return "GitLab";
     },
     truncatedCommitMessage: function () {
