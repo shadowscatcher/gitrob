@@ -18,7 +18,8 @@ func PrintSessionStats(sess *Session) {
 	sess.Out.Infof("Files.......: %d\n", sess.Stats.Files)
 	sess.Out.Infof("Commits.....: %d\n", sess.Stats.Commits)
 	sess.Out.Infof("Repositories: %d\n", sess.Stats.Repositories)
-	sess.Out.Infof("Targets.....: %d\n\n", sess.Stats.Targets)
+	sess.Out.Infof("Targets.....: %d\n", sess.Stats.Targets)
+	sess.Out.Infof("Users.......: %d\n\n", sess.Stats.Users)
 }
 
 func GatherTargets(sess *Session) {

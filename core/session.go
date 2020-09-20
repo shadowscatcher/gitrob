@@ -42,6 +42,7 @@ type Stats struct {
 	Commits      int
 	Files        int
 	Findings     int
+	Users        int
 }
 
 type Github struct {
@@ -277,6 +278,7 @@ func (s *Session) addSignature(sig object.Signature, url, role string) {
 			URL:      url,
 			When:     sig.When,
 		})
+		s.Stats.IncrementUsers()
 	}
 }
 
@@ -308,6 +310,12 @@ func (s *Stats) IncrementFindings() {
 	s.Lock()
 	defer s.Unlock()
 	s.Findings++
+}
+
+func (s *Stats) IncrementUsers() {
+	s.Lock()
+	defer s.Unlock()
+	s.Users++
 }
 
 func (s *Stats) UpdateProgress(current, total int) {
